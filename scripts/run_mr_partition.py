@@ -1,4 +1,4 @@
-"""Host-side single-trial controller. Run with macOS python3; no pip needed."""
+"""Host-side single-trial controller for the dedicated MR partition project."""
 import argparse
 import datetime
 import hashlib

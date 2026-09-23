@@ -167,6 +167,10 @@ def main():
         "--config", choices=["C1", "C2", "C3", "C4"], required=True
     )
     parser.add_argument("--trials", type=int, default=3)
+    parser.add_argument(
+        "--run-id",
+        help="Stable identifier used in the output filename; defaults to a timestamp and UUID",
+    )
     args = parser.parse_args()
 
     if args.trials < 1:
@@ -185,7 +189,9 @@ def main():
     )
 
     config = get_config(args.config)
-    run_id = (
+    if args.run_id and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,90}", args.run_id):
+        parser.error("--run-id must contain only letters, digits, '.', '_' or '-'")
+    run_id = args.run_id or (
         datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         + "-"
         + uuid4().hex[:8]

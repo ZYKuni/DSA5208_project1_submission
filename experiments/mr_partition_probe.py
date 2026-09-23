@@ -20,6 +20,9 @@ if __package__ in (None, ''):
 
 from experiments.common import NodeRecorder, record_operation, classify_error, utc_now
 
+DATABASE = 'dsa5208_mr_partition'
+DIAGNOSTIC_FORMAT = 'dsa5208-mr-partition-1'
+
 
 def emit(value):
     print(json.dumps(value, ensure_ascii=False), flush=True)
@@ -48,7 +51,7 @@ def main():
                     'causal_session': strong, 'retry_reads': False, 'retry_writes': False,
                     'baseline_write_concern': 3},
                 'started_at': utc_now(), 'read_versions': [],
-                'diagnostic_format': 'zhou-jiahao-mr-partition-1',
+                'diagnostic_format': DIAGNOSTIC_FORMAT,
                 'scenario': 'network_partition', 'resume_after_heal': resume}
     options = dict(timeoutMS=7000, serverSelectionTimeoutMS=4000,
                    retryReads=False, retryWrites=False)
@@ -64,12 +67,12 @@ def main():
                 if not c.admin.command('hello').get('secondary'):
                     raise RuntimeError(f'Precondition: {n} must be secondary')
             evidence['environment'] = dict(python_version=platform.python_version(),pymongo_version=pymongo.version,mongodb_version=writer.server_info()['version'])
-            coll=writer.zhou_jiahao_mr_partition.probe
+            coll=writer[DATABASE].probe
             record_operation(ops,wr,stage='baseline_w3',operation='write',document_id=document_id,requested_version=1,
                 action=lambda: coll.with_options(write_concern=WriteConcern(w=3,wtimeout=5000)).insert_one({'_id':document_id,'version':1}))
             def observe(n,stage):
                 return record_operation(ops,observer,stage=stage,operation='observe',document_id=document_id,
-                    action=lambda: direct[n].zhou_jiahao_mr_partition.probe.with_options(read_preference=Secondary(),read_concern=ReadConcern('local')).find_one({'_id':document_id},max_time_ms=3000))
+                    action=lambda: direct[n][DATABASE].probe.with_options(read_preference=Secondary(),read_concern=ReadConcern('local')).find_one({'_id':document_id},max_time_ms=3000))
             for n in direct:
                 d=observe(n,'baseline_'+n)
                 if d is None or d['version']!=1: raise RuntimeError('Baseline not visible')
@@ -95,7 +98,7 @@ def main():
                 session=stack.enter_context(reader.start_session(causal_consistency=strong))
                 evidence['session_id']=str(session.session_id['id'])
                 for n,stage in [('mongo2','first_read'),('mongo3','second_read')]:
-                    c=reader.zhou_jiahao_mr_partition.probe.with_options(read_preference=Secondary(tag_sets=[{'target':n}]),read_concern=ReadConcern('majority' if strong else 'local'))
+                    c=reader[DATABASE].probe.with_options(read_preference=Secondary(tag_sets=[{'target':n}]),read_concern=ReadConcern('majority' if strong else 'local'))
                     try:
                         d=record_operation(ops,rr,stage=stage,operation='read',document_id=document_id,
                             action=lambda: c.find_one({'_id':document_id},session=session,max_time_ms=3000))

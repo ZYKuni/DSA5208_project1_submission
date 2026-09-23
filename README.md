@@ -52,7 +52,7 @@ Required software:
 
 - Docker Desktop or Docker Engine with `docker compose`
 - Git
-- Python 3.9 or newer on the host
+- Python 3.12 on the host (`python3.12` must be available)
 - At least 5 GB of free disk space for a full run
 
 Native Windows PowerShell is not supported by the host fault controller because it uses POSIX file locking. Use WSL2 instead.
@@ -63,7 +63,7 @@ Confirm the tools before continuing:
 docker version
 docker compose version
 git --version
-python3 --version
+python3.12 --version
 docker info
 ```
 
@@ -83,13 +83,37 @@ git -c user.name="Reproduction User" \
 
 If the directory is already a clean Git checkout, keep its existing history and skip those commands.
 
-Create an optional host analysis environment:
+Create the required host environment and activate it. The validators for MR and
+WFR import the experiment modules, so they require the same PyMongo dependency
+as the experiment code. Run the remaining host-side Python commands in this
+shell with the environment active; activate it again after opening a new shell.
 
 ```sh
-python3 -m venv .venv
-./.venv/bin/python -m pip install --upgrade pip
-./.venv/bin/pip install -r requirements.txt
+python3.12 -m venv --clear .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python --version
 ```
+
+`--clear` replaces an older environment in the same directory, including the
+Python 3.9 environment that would otherwise remain incompatible with the pinned
+analysis dependencies. The final version check must report Python 3.12.x.
+
+The supplied `.gitignore` excludes `.venv`, Python caches, and newly generated
+experiment output. Before a formal fault batch, commit any intentional source
+or documentation changes and confirm that the recorded checkout is clean:
+
+```sh
+test -z "$(git status --porcelain)" || {
+  git status --short
+  echo "Commit or remove the listed changes before a formal run."
+  exit 1
+}
+```
+
+Do not use `git add -f` to commit `.venv` or generated run directories merely
+to satisfy this check.
 
 Build the pinned experiment runner:
 
@@ -111,7 +135,7 @@ docker compose run --rm --no-deps runner \
   python -m unittest discover -s tests -v
 ```
 
-The package discovers 117 tests. In the compact submission, 113 self-contained tests pass and four archived-fixture regression tests are skipped because the large historical fixture bundle is not duplicated. The experiment validators remain included and run against every newly generated batch.
+The package discovers 119 tests. In the compact submission, 115 self-contained tests pass and four archived-fixture regression tests are skipped because the large historical fixture bundle is not duplicated. The experiment validators remain included and run against every newly generated batch.
 
 ## 4. Start and verify the normal replica set
 
@@ -155,7 +179,7 @@ This track exercises every model and each fault mechanism with small samples. It
   --configs C1 C4 --trials 2 \
   --experiment-id quick-mw-normal-001
 
-python3 scripts/validate-run.py results/raw/quick-mw-normal-001
+python scripts/validate-run.py results/raw/quick-mw-normal-001
 ```
 
 ### 5.2 Normal RYW and MR
@@ -167,21 +191,24 @@ SOURCE_COMMIT=$(git rev-parse HEAD)
 
 docker compose run --rm --no-deps \
   -e GIT_COMMIT="$SOURCE_COMMIT" runner \
-  python -m experiments.test_ryw --config C1 --trials 2
+  python -m experiments.test_ryw --config C1 --trials 2 \
+    --run-id quick-ryw-normal-001
 
 docker compose run --rm --no-deps \
   -e GIT_COMMIT="$SOURCE_COMMIT" runner \
-  python -m experiments.test_monotonic_reads --config C4 --trials 2
+  python -m experiments.test_monotonic_reads --config C4 --trials 2 \
+    --run-id quick-mr-normal-001
 ```
 
-These commands write timestamped JSON Lines files under `results/pilot/ryw/normal/debug/` and `results/pilot/mr/normal/debug/`.
+These commands write JSON Lines files with the specified run IDs under
+`results/pilot/ryw/normal/debug/` and `results/pilot/mr/normal/debug/`.
 
 ### 5.3 WFR normal operation
 
 The WFR normal smoke uses the isolated fault-lab deployment even though it injects no fault:
 
 ```sh
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload wfr --scenario normal \
   --experiment-id quick-wfr-normal-001 \
   --configs C1 C4 --trials 1 \
@@ -190,37 +217,37 @@ python3 scripts/run-fault-experiment.py \
   --plan-id quick-verification \
   --no-retry-writes
 
-python3 scripts/validate-wfr-run.py results/raw/quick-wfr-normal-001
+python scripts/validate-wfr-run.py results/raw/quick-wfr-normal-001
 ```
 
 ### 5.4 One Secondary stopped
 
 ```sh
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload ryw --scenario secondary-stop \
   --experiment-id quick-ryw-s2-001 \
   --configs C1 C4 --trials 2 \
   --sample-stage pilot --timeout-ms 5000 --no-retry-writes
 
-python3 scripts/validate-secondary-run.py results/raw/quick-ryw-s2-001
+python scripts/validate-secondary-run.py results/raw/quick-ryw-s2-001
 ```
 
 ### 5.5 Primary crash
 
 ```sh
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload mr --scenario primary-crash \
   --experiment-id quick-mr-s4-001 \
   --configs C1 C4 --trials 2 \
   --sample-stage pilot --timeout-ms 10000 --no-retry-writes
 
-python3 scripts/validate-mr-fault-run.py results/raw/quick-mr-s4-001
+python scripts/validate-mr-fault-run.py results/raw/quick-mr-s4-001
 ```
 
 ### 5.6 Replication partition
 
 ```sh
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload wfr --scenario replication-partition \
   --experiment-id quick-wfr-s5-001 \
   --configs C1 C4 --trials 2 \
@@ -229,7 +256,7 @@ python3 scripts/run-fault-experiment.py \
   --plan-id quick-verification \
   --no-retry-writes
 
-python3 scripts/validate-wfr-run.py results/raw/quick-wfr-s5-001
+python scripts/validate-wfr-run.py results/raw/quick-wfr-s5-001
 ```
 
 After every fault command, the controller prints that all isolated-lab nodes were restarted and reconnected. The validator must exit with status 0. If recovery fails, stop and follow Section 10 before running another fault.
@@ -248,8 +275,8 @@ Run MW with 100 trials per configuration:
   --configs C1 C2 C3 C4 --trials 100 \
   --experiment-id reproduce-mw-normal-001
 
-python3 scripts/validate-run.py results/raw/reproduce-mw-normal-001
-python3 scripts/archive-experiment.py reproduce-mw-normal-001
+python scripts/validate-run.py results/raw/reproduce-mw-normal-001
+python scripts/archive-experiment.py reproduce-mw-normal-001
 ```
 
 Run RYW and MR with 100 trials per configuration:
@@ -260,28 +287,35 @@ SOURCE_COMMIT=$(git rev-parse HEAD)
 for CONFIG in C1 C2 C3 C4; do
   docker compose run --rm --no-deps \
     -e GIT_COMMIT="$SOURCE_COMMIT" runner \
-    python -m experiments.test_ryw --config "$CONFIG" --trials 100
+    python -m experiments.test_ryw --config "$CONFIG" --trials 100 \
+      --run-id reproduce-ryw-normal-001
 
   docker compose run --rm --no-deps \
     -e GIT_COMMIT="$SOURCE_COMMIT" runner \
-    python -m experiments.test_monotonic_reads --config "$CONFIG" --trials 100
+    python -m experiments.test_monotonic_reads --config "$CONFIG" --trials 100 \
+      --run-id reproduce-mr-normal-001
 done
 ```
 
-The report treats these RYW files as legacy evidence and the MR files as baseline pilot evidence. Do not relabel their sampling stage.
+These runners produce Schema v1 pilot evidence. Their fixed run IDs allow the
+analysis command in Section 7 to select exactly this reproduction cohort while
+preserving its true `pilot` stage. They are not relabelled as legacy or formal
+evidence. If either fixed ID already exists, choose a new ID for both the runner
+and its matching `--select-source` pattern in Section 7; output is never
+overwritten.
 
 ### 6.2 MW and RYW Secondary-loss matrix
 
 The fixed Secondary matrix contains C1/C4, 20 pilot and 100 formal attempts per cell, for S2, S3 immediate, and S3 settled. Run the pilot first because the formal launcher validates it before continuing:
 
 ```sh
-python3 scripts/run-secondary-suite.py \
+python scripts/run-secondary-suite.py \
   --prefix reproduce-secondary \
   --stage pilot \
   --workloads mw ryw \
   --scenarios s2 s3 s3-settled
 
-python3 scripts/run-secondary-suite.py \
+python scripts/run-secondary-suite.py \
   --prefix reproduce-secondary-formal \
   --stage formal \
   --pilot-prefix reproduce-secondary \
@@ -296,39 +330,39 @@ The launcher validates every batch and copies verified evidence into `results/ar
 Run C1/C4 pilot batches:
 
 ```sh
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload mr --scenario secondary-stop \
   --experiment-id reproduce-mr-s2-pilot \
   --configs C1 C4 --trials 20 \
   --sample-stage pilot --timeout-ms 5000 --no-retry-writes
 
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload mr --scenario primary-crash \
   --experiment-id reproduce-mr-s4-pilot \
   --configs C1 C4 --trials 20 \
   --sample-stage pilot --timeout-ms 10000 --no-retry-writes
 
-python3 scripts/validate-mr-fault-run.py results/raw/reproduce-mr-s2-pilot
-python3 scripts/validate-mr-fault-run.py results/raw/reproduce-mr-s4-pilot
+python scripts/validate-mr-fault-run.py results/raw/reproduce-mr-s2-pilot
+python scripts/validate-mr-fault-run.py results/raw/reproduce-mr-s4-pilot
 ```
 
 Then run 100 formal attempts per configuration:
 
 ```sh
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload mr --scenario secondary-stop \
   --experiment-id reproduce-mr-s2-formal \
   --configs C1 C4 --trials 100 \
   --sample-stage formal --timeout-ms 5000 --no-retry-writes
 
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload mr --scenario primary-crash \
   --experiment-id reproduce-mr-s4-formal \
   --configs C1 C4 --trials 100 \
   --sample-stage formal --timeout-ms 10000 --no-retry-writes
 
-python3 scripts/validate-mr-fault-run.py results/raw/reproduce-mr-s2-formal
-python3 scripts/validate-mr-fault-run.py results/raw/reproduce-mr-s4-formal
+python scripts/validate-mr-fault-run.py results/raw/reproduce-mr-s2-formal
+python scripts/validate-mr-fault-run.py results/raw/reproduce-mr-s4-formal
 ```
 
 Expected total: 80 pilot and 400 formal attempts. The formal validator requires complete fault-order, source-hash, recovery, and convergence evidence.
@@ -338,38 +372,38 @@ Expected total: 80 pilot and 400 formal attempts. The formal validator requires 
 These batches are smaller than the principal fixed matrices and must remain separate.
 
 ```sh
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload mw --scenario primary-crash \
   --experiment-id reproduce-mw-s4-diagnostic \
   --configs C1 C2 C3 C4 --trials 20
 
-python3 scripts/validate-fault-run.py \
+python scripts/validate-fault-run.py \
   results/raw/reproduce-mw-s4-diagnostic --archive
 
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload mw --scenario replication-partition \
   --experiment-id reproduce-mw-s5-diagnostic \
   --configs C1 C4 --trials 5 --no-retry-writes
 
-python3 scripts/validate-fault-run.py \
+python scripts/validate-fault-run.py \
   results/raw/reproduce-mw-s5-diagnostic --archive
 ```
 
 Run one RYW diagnostic attempt per configuration and scenario:
 
 ```sh
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload ryw --scenario primary-crash \
   --experiment-id reproduce-ryw-s4-diagnostic \
   --configs C1 C2 C3 C4 --trials 1
 
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload ryw --scenario replication-partition \
   --experiment-id reproduce-ryw-s5-diagnostic \
   --configs C1 C2 C3 C4 --trials 1 --no-retry-writes
 
-python3 scripts/validate-ryw-fault-run.py results/raw/reproduce-ryw-s4-diagnostic
-python3 scripts/validate-ryw-fault-run.py results/raw/reproduce-ryw-s5-diagnostic
+python scripts/validate-ryw-fault-run.py results/raw/reproduce-ryw-s4-diagnostic
+python scripts/validate-ryw-fault-run.py results/raw/reproduce-ryw-s5-diagnostic
 ```
 
 Rollback is reported separately from MW ordering. A timeout or failed predecessor write is not a consistency violation.
@@ -377,18 +411,27 @@ Rollback is reported separately from MW ordering. A timeout or failed predecesso
 ### 6.5 MR partition diagnostic
 
 MR partition uses a separate three-node project with independent volumes and tagged observation networks.
+The commands below create a fresh, dedicated MR diagnostic deployment. The
+volume removal applies only to the `dsa5208-mr` Compose project; copy any prior
+diagnostic evidence out first if this is not a new reproduction.
 
 ```sh
+docker compose -f docker-compose.mr.yml down --volumes
 docker compose -f docker-compose.mr.yml up -d
+
+until docker compose -f docker-compose.mr.yml exec -T mongo1 \
+  mongosh --quiet --eval 'quit(db.adminCommand({ping:1}).ok ? 0 : 2)'; do
+  sleep 1
+done
 
 docker compose -f docker-compose.mr.yml exec -T mongo1 \
   mongosh --quiet --eval '
     try { rs.status(); }
     catch (error) {
       rs.initiate({_id:"rs0",members:[
-        {_id:0,host:"mongo1:27017"},
-        {_id:1,host:"mongo2:27017"},
-        {_id:2,host:"mongo3:27017"}
+        {_id:0,host:"mongo1:27017",priority:2,tags:{target:"mongo1"}},
+        {_id:1,host:"mongo2:27017",priority:1,tags:{target:"mongo2"}},
+        {_id:2,host:"mongo3:27017",priority:1,tags:{target:"mongo3"}}
       ]});
     }
   '
@@ -398,18 +441,32 @@ docker compose -f docker-compose.mr.yml exec -T client \
           /opt/venv/bin/pip install -r requirements-experiments.txt'
 ```
 
-Wait until the replica set has one Primary and two Secondaries:
+Wait until `mongo1` is Primary, `mongo2` and `mongo3` are Secondaries, and all
+three `target` tags are present. The probe enforces these preconditions because
+its first and second reads are deliberately routed to different Secondaries.
 
 ```sh
-docker compose -f docker-compose.mr.yml exec -T mongo1 \
-  mongosh --quiet --eval 'rs.status().members.forEach(m => print(m.name, m.stateStr, m.health))'
+until docker compose -f docker-compose.mr.yml exec -T mongo1 \
+  mongosh --quiet --eval '
+    const status = rs.status();
+    const config = rs.conf();
+    status.members.forEach(m => print(m.name, m.stateStr, m.health));
+    printjson(config.members.map(m => ({host:m.host, priority:m.priority, tags:m.tags})));
+    if (db.hello().primary !== "mongo1:27017" ||
+        status.members.filter(m => m.stateStr === "SECONDARY").length !== 2 ||
+        config.members.some(m => !m.tags || m.tags.target !== m.host.split(":")[0])) {
+      quit(2);
+    }
+  '; do
+  sleep 1
+done
 ```
 
 Run five fixed diagnostics for each comparison configuration:
 
 ```sh
-for N in 1 2 3 4 5; do python3 scripts/run_mr_partition.py --config C1; done
-for N in 1 2 3 4 5; do python3 scripts/run_mr_partition.py --config C4; done
+for N in 1 2 3 4 5; do python scripts/run_mr_partition.py --config C1; done
+for N in 1 2 3 4 5; do python scripts/run_mr_partition.py --config C4; done
 ```
 
 The controller restores the network and verifies document convergence after every trial. C1 may expose a 2-to-1 regression; C4 may time out. Either outcome is environment-dependent, so reproduce the protocol and classification rather than demanding identical counts.
@@ -426,7 +483,7 @@ Run 20 pilot attempts per C1/C4 cell:
 
 ```sh
 for SCENARIO in secondary-stop primary-crash replication-partition; do
-  python3 scripts/run-fault-experiment.py \
+  python scripts/run-fault-experiment.py \
     --workload wfr --scenario "$SCENARIO" \
     --experiment-id "reproduce-wfr-${SCENARIO}-pilot" \
     --configs C1 C4 --trials 20 \
@@ -435,7 +492,7 @@ for SCENARIO in secondary-stop primary-crash replication-partition; do
     --plan-id reproduce-wfr-v2 \
     --no-retry-writes
 
-  python3 scripts/validate-wfr-run.py \
+  python scripts/validate-wfr-run.py \
     "results/raw/reproduce-wfr-${SCENARIO}-pilot"
 done
 ```
@@ -444,7 +501,7 @@ Run 100 formal attempts per cell:
 
 ```sh
 for SCENARIO in secondary-stop primary-crash replication-partition; do
-  python3 scripts/run-fault-experiment.py \
+  python scripts/run-fault-experiment.py \
     --workload wfr --scenario "$SCENARIO" \
     --experiment-id "reproduce-wfr-${SCENARIO}-formal" \
     --configs C1 C4 --trials 100 \
@@ -453,7 +510,7 @@ for SCENARIO in secondary-stop primary-crash replication-partition; do
     --plan-id reproduce-wfr-v2 \
     --no-retry-writes
 
-  python3 scripts/validate-wfr-run.py \
+  python scripts/validate-wfr-run.py \
     "results/raw/reproduce-wfr-${SCENARIO}-formal"
 done
 ```
@@ -465,46 +522,65 @@ Expected total: 120 pilot and 600 formal attempts. The report's formal batch had
 The earlier protocol tests an uncommitted old-Primary dependency and is not pooled with the fixed v2 matrix:
 
 ```sh
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload wfr --scenario normal \
   --experiment-id reproduce-wfr-v1-normal \
   --configs C1 C4 --trials 3 \
   --wfr-protocol wfr-protocol-1 --no-retry-writes
 
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload wfr --scenario primary-crash \
   --experiment-id reproduce-wfr-v1-crash \
   --configs C1 C4 --trials 1 \
   --wfr-protocol wfr-protocol-1 --no-retry-writes
 
-python3 scripts/run-fault-experiment.py \
+python scripts/run-fault-experiment.py \
   --workload wfr --scenario replication-partition \
   --experiment-id reproduce-wfr-v1-partition \
   --configs C1 C4 --trials 1 \
   --wfr-protocol wfr-protocol-1 --no-retry-writes
 ```
 
-Validate each directory with `scripts/validate-wfr-run.py`. Candidate rollback evidence remains a candidate unless its trial-specific evidence supports the classification.
+Validate the v1 directories with the historical-protocol verifier. The v2-only
+`validate-wfr-run.py` intentionally rejects these runs.
+
+```sh
+python scripts/verify-wfr-pilot.py \
+  results/raw/reproduce-wfr-v1-normal \
+  results/raw/reproduce-wfr-v1-crash \
+  results/raw/reproduce-wfr-v1-partition
+```
+
+Candidate rollback evidence remains a candidate unless its trial-specific
+evidence supports the classification.
 
 ## 7. Regenerate unified statistics and figures
 
-Install the analysis dependencies if Section 3 was skipped:
+Section 3 is required. If this is a new shell, reactivate its environment:
 
 ```sh
-python3 -m venv .venv
-./.venv/bin/pip install -r requirements.txt
+. .venv/bin/activate
+python --version
 ```
 
 Choose output directories that do not already exist:
 
 ```sh
-./.venv/bin/python -m analysis.unified \
+python -m analysis.unified \
+  --select-source 'results/pilot/ryw/normal/debug/*-reproduce-ryw-normal-001.jsonl' \
+  --select-source 'results/pilot/mr/normal/debug/*-reproduce-mr-normal-001.jsonl' \
   --output results/summary/reproduced-final
 
-./.venv/bin/python -m analysis.plot_results \
+python -m analysis.plot_results \
   --input results/summary/reproduced-final \
   --output results/figures/reproduced-final
 ```
+
+Each `--select-source` value is a repository-relative glob for an explicitly
+named reproduction cohort. The analyzer fails if a pattern matches no evidence,
+records the selection reason in `catalog.json`, and retains the source's actual
+pilot/formal stage. This prevents unrelated files in a debug directory from
+silently entering the figures.
 
 The summary directory contains:
 
@@ -612,7 +688,7 @@ Do not add `--volumes` unless permanent deletion of database state is explicitly
 
 - [ ] Tool versions recorded
 - [ ] Runner image built
-- [ ] 113 self-contained tests passed and four archived-fixture tests were reported as skipped
+- [ ] 115 self-contained tests passed and four archived-fixture tests were reported as skipped
 - [ ] Normal replica set reached one Primary and two Secondaries
 - [ ] Quick MW, RYW, MR, and WFR checks completed
 - [ ] S2/S3 MW and RYW batches validated

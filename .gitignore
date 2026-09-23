@@ -1,0 +1,14 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Reproduction output. The compact package keeps its submitted evidence and
+# figures tracked; newly generated runs belong in these ignored locations.
+results/raw/
+results/pilot/
+results/fault-control/
+results/summary/
+results/archive/
+results/figures/reproduced-*/

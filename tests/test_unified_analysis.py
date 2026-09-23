@@ -116,6 +116,24 @@ class UnifiedTests(unittest.TestCase):
             self.assertIsNotNone(catalog[1]['duplicate_of'])
             self.assertEqual((folder/'a.jsonl').read_text(),text)
 
+    def test_explicit_reproduction_source_is_selected_without_changing_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = root/'results/pilot/ryw/normal/debug'
+            folder.mkdir(parents=True)
+            source = folder/'ryw-C1-normal-reproduce-001.jsonl'
+            source.write_text(json.dumps(flat())+'\n')
+            pattern = 'results/pilot/ryw/normal/debug/*-reproduce-001.jsonl'
+            catalog, trials = load_sources(root, [pattern])
+            self.assertTrue(catalog[0]['selected'])
+            self.assertEqual(catalog[0]['selection_reason'], 'explicit-reproduction-source')
+            self.assertEqual((trials[0]['stage'], trials[0]['selected']), ('pilot', True))
+
+    def test_unmatched_explicit_source_fails_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, 'matched no evidence'):
+                load_sources(Path(tmp), ['results/pilot/missing-*.jsonl'])
+
     @unittest.skipUnless(
         (Path(__file__).resolve().parents[1]/'results/raw/c-wfr-normal-pilot-0914-01').exists(),
         'archived cross-model fixture bundle is not included in the compact submission',

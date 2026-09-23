@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
+import fnmatch
 import hashlib
 import json
 import math
@@ -179,8 +180,9 @@ def stage_for(path, manifest):
     return 'unreviewed'
 
 
-def load_sources(root):
+def load_sources(root, select_sources=()):
     catalog, normalized, seen = [], [], {}
+    matched_patterns = set()
     for path in discover(root):
         relative = str(path.relative_to(root))
         manifest_path = path.parent / 'manifest.json'
@@ -205,11 +207,16 @@ def load_sources(root):
         # Repeat-series selection is pinned to the documented 09:27–09:28 MR batch.
         repeat = fmt == 'mr-diagnostic' and ('20260910T0927' in relative or '20260910T0928' in relative)
         secondary_cohort = manifest.get('protocol') == 'secondary-stop-v1' and path.parent.name.startswith('a-s')
+        explicit_patterns = [pattern for pattern in select_sources
+                             if fnmatch.fnmatchcase(relative, pattern)]
+        matched_patterns.update(explicit_patterns)
         selected = ((stage == 'formal' or secondary_cohort or 'baseline' in path.parts or 'handoff' in path.parts
                      or path.parent.name.startswith('c-wfr-') or 'results/archive/' in relative or repeat)
-                    and manifest.get('status', 'completed') == 'completed')
+                    or bool(explicit_patterns)) and manifest.get('status', 'completed') == 'completed'
         entry = {'source': relative, 'sha256': digest, 'format': fmt, 'stage': stage,
                  'selected': bool(selected), 'duplicate_of': seen.get(digest),
+                 'selection_reason': ('explicit-reproduction-source' if explicit_patterns else
+                                      'documented-cohort' if selected else 'not-selected'),
                  'manifest_status': manifest.get('status'),
                  'planned_trials': (manifest.get('trials_per_config',0)*len(manifest.get('configs',[]))) or None,
                  'supporting_sha256': {str(manifest_path.relative_to(root)):sha(manifest_path)} if manifest_path.exists() else {},
@@ -242,6 +249,9 @@ def load_sources(root):
             trial['batch'] = ('mr-repeat5' if repeat else
                               str(path.parent.relative_to(root)) if fmt in {'legacy','schema-v1'} else path.parent.name)
             normalized.append(trial)
+    unmatched = set(select_sources) - matched_patterns
+    if unmatched:
+        raise ValueError('Selection pattern matched no evidence: ' + ', '.join(sorted(unmatched)))
     return catalog, normalized
 
 
@@ -326,10 +336,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=ROOT)
     parser.add_argument('--output', type=Path, default=ROOT / 'results/summary/unified-0914')
+    parser.add_argument('--select-source', action='append', default=[], metavar='GLOB',
+                        help='Explicitly include matching repository-relative evidence in this analysis; repeatable')
     args = parser.parse_args(argv)
     if args.output.exists():
         parser.error('Output already exists; use a new output directory to retain previous analysis.')
-    catalog, trials = load_sources(args.root)
+    catalog, trials = load_sources(args.root, args.select_source)
     summaries = summarize(trials)
     # Verify no evidence changed while it was being read.
     assert all(sha(args.root / e['source']) == e['sha256'] for e in catalog)
