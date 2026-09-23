@@ -1,0 +1,16 @@
+# Verified development environment (2026-09-01)
+# macOS: 15.7.3 (Apple Silicon)
+# Python: 3.12.11
+# pip: 25.0.1
+# MongoDB Server: 8.0.12
+# mongosh: 2.5.6
+# Docker Desktop: 4.45.0
+# Docker Engine: 28.3.3
+# Docker Compose: 2.39.2-desktop.1
+# Git: 2.50.1 (Apple Git-155)
+
+# Direct Python dependencies
+pymongo==4.17.0
+pandas==3.0.5
+matplotlib==3.11.1
+jsonschema==4.26.0

@@ -1,0 +1,66 @@
+name: dsa5208-mr
+
+x-mongo: &mongo
+  image: mongo:8.0.12
+  command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+  restart: "no"
+
+services:
+  mongo1:
+    <<: *mongo
+    hostname: mongo1
+    volumes:
+      - mr_mongo1_data:/data/db
+    networks:
+      replication:
+      client1:
+        aliases:
+          - mongo1
+
+  mongo2:
+    <<: *mongo
+    hostname: mongo2
+    volumes:
+      - mr_mongo2_data:/data/db
+    networks:
+      replication:
+      client2:
+        aliases:
+          - mongo2
+
+  mongo3:
+    <<: *mongo
+    hostname: mongo3
+    volumes:
+      - mr_mongo3_data:/data/db
+    networks:
+      replication:
+      client3:
+        aliases:
+          - mongo3
+
+  client:
+    image: python:3.12.11-slim
+    working_dir: /workspace
+    command: ["sleep", "infinity"]
+    volumes:
+      - .:/workspace
+      - mr_client_venv:/opt/venv
+    environment:
+      MONGODB_URI: mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0
+    networks:
+      - client1
+      - client2
+      - client3
+
+networks:
+  replication:
+  client1:
+  client2:
+  client3:
+
+volumes:
+  mr_mongo1_data:
+  mr_mongo2_data:
+  mr_mongo3_data:
+  mr_client_venv:

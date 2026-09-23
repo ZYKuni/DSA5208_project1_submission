@@ -1,0 +1,548 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ZYKuni/NUS_DSA5208_project1/blob/main/report/result-schema-v1.json",
+  "title": "DSA5208 client-centric consistency trial result",
+  "description": "Frozen version 1.0.0 schema. One JSONL line represents one trial.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "trial_id",
+    "model",
+    "config",
+    "scenario",
+    "status",
+    "violation",
+    "classification_reason",
+    "started_at",
+    "completed_at",
+    "latency_ms",
+    "operations",
+    "model_data",
+    "environment",
+    "error",
+    "rollback_observed"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9]{8}$"
+    },
+    "trial_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "model": {
+      "enum": ["RYW", "MR", "MW", "WFR"]
+    },
+    "config": {
+      "$ref": "#/$defs/config"
+    },
+    "scenario": {
+      "$ref": "#/$defs/scenario"
+    },
+    "status": {
+      "$ref": "#/$defs/trial_status"
+    },
+    "violation": {
+      "type": ["boolean", "null"]
+    },
+    "classification_reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "started_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "completed_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "latency_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/operation"
+      }
+    },
+    "model_data": {
+      "type": "object"
+    },
+    "environment": {
+      "$ref": "#/$defs/environment"
+    },
+    "error": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/error"}
+      ]
+    },
+    "rollback_observed": {
+      "type": ["boolean", "null"]
+    }
+  },
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "trial_status": {
+      "enum": ["success", "timeout", "unavailable", "error", "invalid_trial"]
+    },
+    "operation_status": {
+      "enum": ["success", "timeout", "unavailable", "error", "skipped"]
+    },
+    "nullable_nonnegative_integer": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "read_concern",
+        "write_concern",
+        "read_preference",
+        "causal_session",
+        "retry_reads",
+        "retry_writes"
+      ],
+      "properties": {
+        "id": {
+          "enum": ["C1", "C2", "C3", "C4", "C5", "C6"]
+        },
+        "read_concern": {
+          "enum": ["local", "majority"]
+        },
+        "write_concern": {
+          "oneOf": [
+            {"type": "integer", "minimum": 1},
+            {"const": "majority"}
+          ]
+        },
+        "read_preference": {
+          "enum": ["primary", "secondaryPreferred"]
+        },
+        "causal_session": {
+          "type": "boolean"
+        },
+        "retry_reads": {
+          "type": "boolean"
+        },
+        "retry_writes": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"id": {"const": "C1"}}, "required": ["id"]},
+          "then": {"properties": {"read_concern": {"const": "local"}, "write_concern": {"const": 1}, "read_preference": {"const": "secondaryPreferred"}, "causal_session": {"const": false}}}
+        },
+        {
+          "if": {"properties": {"id": {"const": "C2"}}, "required": ["id"]},
+          "then": {"properties": {"read_concern": {"const": "local"}, "write_concern": {"const": 1}, "read_preference": {"const": "primary"}, "causal_session": {"const": false}}}
+        },
+        {
+          "if": {"properties": {"id": {"const": "C3"}}, "required": ["id"]},
+          "then": {"properties": {"read_concern": {"const": "majority"}, "write_concern": {"const": "majority"}, "read_preference": {"const": "secondaryPreferred"}, "causal_session": {"const": false}}}
+        },
+        {
+          "if": {"properties": {"id": {"const": "C4"}}, "required": ["id"]},
+          "then": {"properties": {"read_concern": {"const": "majority"}, "write_concern": {"const": "majority"}, "read_preference": {"const": "secondaryPreferred"}, "causal_session": {"const": true}}}
+        },
+        {
+          "if": {"properties": {"id": {"const": "C5"}}, "required": ["id"]},
+          "then": {"properties": {"read_concern": {"const": "majority"}, "write_concern": {"const": 1}, "read_preference": {"const": "secondaryPreferred"}, "causal_session": {"const": true}}}
+        },
+        {
+          "if": {"properties": {"id": {"const": "C6"}}, "required": ["id"]},
+          "then": {"properties": {"read_concern": {"const": "local"}, "write_concern": {"const": "majority"}, "read_preference": {"const": "secondaryPreferred"}, "causal_session": {"const": true}}}
+        }
+      ]
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["git_commit", "python_version", "pymongo_version", "mongodb_version"],
+      "properties": {
+        "git_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "python_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "pymongo_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "mongodb_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      }
+    },
+    "fault": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "target_nodes",
+        "injected_after_stage",
+        "injected_at",
+        "healed_at"
+      ],
+      "properties": {
+        "action": {
+          "enum": [
+            "container_stop",
+            "container_kill",
+            "primary_stepdown",
+            "network_partition",
+            "replication_pause"
+          ]
+        },
+        "target_nodes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "injected_after_stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "injected_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "healed_at": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/timestamp"}
+          ]
+        }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "fault"],
+      "properties": {
+        "name": {
+          "enum": [
+            "normal",
+            "replication_lag",
+            "primary_failure",
+            "secondary_failure",
+            "multi_node_failure",
+            "network_partition"
+          ]
+        },
+        "fault": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/fault"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"name": {"const": "normal"}},
+            "required": ["name"]
+          },
+          "then": {
+            "properties": {"fault": {"type": "null"}}
+          },
+          "else": {
+            "properties": {"fault": {"$ref": "#/$defs/fault"}}
+          }
+        }
+      ]
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "message", "stage"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "command_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "node", "request_id"],
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "node": {
+          "type": "string",
+          "minLength": 1
+        },
+        "request_id": {
+          "type": "integer"
+        }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "stage",
+        "operation",
+        "status",
+        "node",
+        "document_id",
+        "version",
+        "client_seq",
+        "started_at",
+        "completed_at",
+        "latency_ms",
+        "error"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "enum": ["read", "write", "observe", "fault", "heal"]
+        },
+        "status": {
+          "$ref": "#/$defs/operation_status"
+        },
+        "node": {
+          "type": ["string", "null"]
+        },
+        "document_id": {
+          "type": ["string", "null"]
+        },
+        "version": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "client_seq": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "started_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "completed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "latency_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "error": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/error"}
+          ]
+        },
+        "command_events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/command_event"
+          }
+        }
+      }
+    },
+    "ryw_data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["write_version", "read_version"],
+      "properties": {
+        "write_version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "read_version": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        }
+      }
+    },
+    "mr_data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["first_read_version", "second_read_version"],
+      "properties": {
+        "first_read_version": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "second_read_version": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        }
+      }
+    },
+    "mw_data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "first_write_seq",
+        "second_write_seq",
+        "observed_write_seq",
+        "predecessor_observed"
+      ],
+      "properties": {
+        "first_write_seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "second_write_seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "observed_write_seq": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "predecessor_observed": {
+          "type": ["boolean", "null"]
+        }
+      }
+    },
+    "wfr_data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_document_id",
+        "read_version",
+        "dependent_write_document_id",
+        "dependency_observed_version"
+      ],
+      "properties": {
+        "read_document_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "read_version": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        },
+        "dependent_write_document_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dependency_observed_version": {
+          "$ref": "#/$defs/nullable_nonnegative_integer"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"status": {"const": "success"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "violation": {"type": "boolean"},
+          "error": {"type": "null"}
+        }
+      },
+      "else": {
+        "properties": {
+          "violation": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "model": {"const": "MR"},
+          "status": {"const": "success"}
+        },
+        "required": ["model", "status"]
+      },
+      "then": {
+        "properties": {
+          "model_data": {
+            "properties": {"first_read_version": {"type": "integer"}}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "model": {"const": "WFR"},
+          "status": {"const": "success"}
+        },
+        "required": ["model", "status"]
+      },
+      "then": {
+        "properties": {
+          "model_data": {
+            "properties": {"read_version": {"type": "integer"}}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"model": {"const": "RYW"}},
+        "required": ["model"]
+      },
+      "then": {
+        "properties": {"model_data": {"$ref": "#/$defs/ryw_data"}}
+      }
+    },
+    {
+      "if": {
+        "properties": {"model": {"const": "MR"}},
+        "required": ["model"]
+      },
+      "then": {
+        "properties": {"model_data": {"$ref": "#/$defs/mr_data"}}
+      }
+    },
+    {
+      "if": {
+        "properties": {"model": {"const": "MW"}},
+        "required": ["model"]
+      },
+      "then": {
+        "properties": {"model_data": {"$ref": "#/$defs/mw_data"}}
+      }
+    },
+    {
+      "if": {
+        "properties": {"model": {"const": "WFR"}},
+        "required": ["model"]
+      },
+      "then": {
+        "properties": {"model_data": {"$ref": "#/$defs/wfr_data"}}
+      }
+    }
+  ]
+}

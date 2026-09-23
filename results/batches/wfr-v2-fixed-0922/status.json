@@ -1,0 +1,9 @@
+{
+  "plan_id": "wfr-v2-fixed-0922",
+  "started_at": "2026-09-23T08:49:16.382311+00:00",
+  "status": "stopped",
+  "completed": [],
+  "current": null,
+  "error": "RuntimeError: Source checkout is not clean; queue stopped",
+  "updated_at": "2026-09-23T08:49:19.067863+00:00"
+}

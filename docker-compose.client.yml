@@ -1,0 +1,15 @@
+services:
+  client:
+    image: python:3.12.11-slim
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - client_venv:/opt/venv
+    environment:
+      MONGODB_URI: mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0
+    networks:
+      - mongo-rs-network
+    command: ["sleep", "infinity"]
+
+volumes:
+  client_venv:
