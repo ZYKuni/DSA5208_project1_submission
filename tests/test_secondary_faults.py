@@ -1,4 +1,6 @@
 import unittest
+import importlib.util
+from pathlib import Path
 from unittest.mock import patch
 from types import SimpleNamespace
 from datetime import datetime
@@ -6,6 +8,12 @@ from pymongo.errors import WTimeoutError
 from experiments.common import NodeRecorder, record_operation, utc_now
 from experiments.run_secondary_faults import select_targets, assess
 from test_fault_entrypoint import host
+
+SUITE_SPEC = importlib.util.spec_from_file_location(
+    'secondary_suite', Path(__file__).resolve().parents[1] / 'scripts/run-secondary-suite.py'
+)
+SECONDARY_SUITE = importlib.util.module_from_spec(SUITE_SPEC)
+SUITE_SPEC.loader.exec_module(SECONDARY_SUITE)
 
 class CompatibilityTests(unittest.TestCase):
     def test_schema_utc_and_failed_operation_preserved(self):
@@ -21,6 +29,15 @@ class CompatibilityTests(unittest.TestCase):
             self.assertIsNotNone(datetime.fromisoformat(value).tzinfo)
 
 class SecondaryTests(unittest.TestCase):
+    def test_replacement_pilot_override_is_explicit_and_unique(self):
+        parsed = SECONDARY_SUITE.parse_pilot_overrides([
+            's3-settled:ryw=reproduce-secondary-retry-s3-settled-ryw-pilot'
+        ])
+        self.assertEqual(parsed, {('s3-settled','ryw'):
+                         'reproduce-secondary-retry-s3-settled-ryw-pilot'})
+        with self.assertRaises(ValueError):
+            SECONDARY_SUITE.parse_pilot_overrides(['bad'])
+
     def test_targets_never_include_primary(self):
         snapshot={'status': {'members': [
             {'name': n+':27017', 'stateStr': 'PRIMARY' if n=='mongo2' else 'SECONDARY'}

@@ -157,7 +157,7 @@ docker compose run --rm --no-deps runner \
   python -m unittest discover -s tests -v
 ```
 
-The package discovers 120 tests. In the compact submission, 116 self-contained tests pass and four archived-fixture regression tests are skipped because the large historical fixture bundle is not duplicated. The experiment validators remain included and run against every newly generated batch.
+The package discovers 121 tests. In the compact submission, 117 self-contained tests pass and four archived-fixture regression tests are skipped because the large historical fixture bundle is not duplicated. The experiment validators remain included and run against every newly generated batch.
 
 ## 4. Start and verify the normal replica set
 
@@ -684,6 +684,27 @@ done
 
 Then inspect the interrupted run. Do not delete it or reuse its experiment ID.
 
+For a Secondary pilot interrupted partway through, preserve its raw and
+fault-control directories under `results/interrupted/raw/` and
+`results/interrupted/fault-control/`, using names ending in
+`-interrupted-<UTC timestamp>`. Keeping incomplete or empty operation logs out
+of `results/raw/` prevents the unified analyzer from treating them as input.
+Run only the missing cell with a new experiment ID, then validate and archive
+it. When launching the formal matrix, map that cell to the replacement pilot:
+
+```sh
+python scripts/run-secondary-suite.py \
+  --prefix reproduce-secondary-formal \
+  --stage formal \
+  --pilot-prefix reproduce-secondary \
+  --pilot-run s3-settled:ryw=reproduce-secondary-retry-s3-settled-ryw-pilot \
+  --workloads mw ryw \
+  --scenarios s2 s3 s3-settled
+```
+
+The launcher validates both the five default pilot IDs and the explicitly
+mapped replacement before starting any formal batch.
+
 ### A validator fails
 
 Stop further sampling. The usual causes are an interrupted run, missing controller response, source-hash mismatch, failed recovery, or edited evidence. Preserve the directory and read the first validator error before retrying with a new ID.
@@ -712,7 +733,7 @@ Do not add `--volumes` unless permanent deletion of database state is explicitly
 
 - [ ] Tool versions recorded
 - [ ] Runner image built
-- [ ] 116 self-contained tests passed and four archived-fixture tests were reported as skipped
+- [ ] 117 self-contained tests passed and four archived-fixture tests were reported as skipped
 - [ ] Normal replica set reached one Primary and two Secondaries
 - [ ] Quick MW, RYW, MR, and WFR checks completed
 - [ ] S2/S3 MW and RYW batches validated

@@ -9,6 +9,7 @@ __pycache__/
 results/raw/
 results/pilot/
 results/fault-control/
+results/interrupted/
 results/summary/
 results/archive/
 results/figures/reproduced-*/
