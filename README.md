@@ -52,7 +52,7 @@ Required software:
 
 - Docker Desktop or Docker Engine with `docker compose`
 - Git
-- Python 3.12 on the host (`python3.12` must be available)
+- Python 3.12 on the host (the executable may be supplied through `PYTHON312`)
 - At least 5 GB of free disk space for a full run
 
 Native Windows PowerShell is not supported by the host fault controller because it uses POSIX file locking. Use WSL2 instead.
@@ -63,11 +63,33 @@ Confirm the tools before continuing:
 docker version
 docker compose version
 git --version
-python3.12 --version
 docker info
 ```
 
 `docker info` must succeed. Start Docker Desktop if it does not.
+
+Locate Python 3.12 and verify its version before creating an environment. The
+first branch handles the usual command name. The second is the path used by the
+recorded macOS/Miniforge host; replace it with an absolute path on another
+machine if necessary.
+
+```sh
+if [ -n "${PYTHON312:-}" ]; then
+  :
+elif command -v python3.12 >/dev/null 2>&1; then
+  PYTHON312=$(command -v python3.12)
+elif [ -x "$HOME/miniforge3/bin/python3.12" ]; then
+  PYTHON312="$HOME/miniforge3/bin/python3.12"
+else
+  echo "Python 3.12 was not found. Install it or export PYTHON312=/absolute/path/to/python3.12."
+  exit 1
+fi
+
+"$PYTHON312" -c 'import sys; assert sys.version_info[:2] == (3, 12), sys.version'
+"$PYTHON312" --version
+```
+
+An already exported `PYTHON312` takes precedence over automatic detection.
 
 ## 3. Prepare a clean local copy
 
@@ -89,7 +111,7 @@ as the experiment code. Run the remaining host-side Python commands in this
 shell with the environment active; activate it again after opening a new shell.
 
 ```sh
-python3.12 -m venv --clear .venv
+"$PYTHON312" -m venv --clear .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
