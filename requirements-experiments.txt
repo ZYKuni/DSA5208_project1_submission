@@ -1,4 +1,4 @@
-# Minimal runner: analysis uses Python's standard library.
+# Minimal runner: experiment execution and non-rendering tests avoid plotting dependencies.
 pymongo==4.17.0
 dnspython==2.8.0
 jsonschema==4.26.0

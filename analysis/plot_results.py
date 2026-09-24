@@ -1,19 +1,24 @@
 """Offline figures from unified JSON; never reads or modifies MongoDB."""
 import argparse
 from datetime import datetime
+from functools import lru_cache
 import json
 import os
 from pathlib import Path
 import tempfile
 
-os.environ.setdefault('MPLCONFIGDIR', str(Path(tempfile.gettempdir()) / 'dsa5208-matplotlib'))
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import numpy as np
 
-plt.rcParams.update({'font.size': 9, 'axes.spines.top': False, 'axes.spines.right': False,
-                     'svg.fonttype': 'none', 'savefig.facecolor': 'white'})
+@lru_cache(maxsize=1)
+def plotting_modules():
+    """Load optional rendering dependencies only when figures are requested."""
+    os.environ.setdefault('MPLCONFIGDIR', str(Path(tempfile.gettempdir()) / 'dsa5208-matplotlib'))
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import numpy as np
+    plt.rcParams.update({'font.size': 9, 'axes.spines.top': False, 'axes.spines.right': False,
+                         'svg.fonttype': 'none', 'savefig.facecolor': 'white'})
+    return plt, np
 
 
 def label(g):
@@ -23,6 +28,7 @@ def label(g):
 
 
 def save(fig, output, name):
+    plt, _ = plotting_modules()
     for suffix in ('png', 'svg'):
         fig.savefig(output / f'{name}.{suffix}', dpi=160, bbox_inches='tight')
         if suffix == 'svg':
@@ -32,6 +38,7 @@ def save(fig, output, name):
 
 
 def charts(groups, output):
+    plt, np = plotting_modules()
     names = []
     pages = []
     for model in sorted({g['model'] for g in groups}):
@@ -113,6 +120,7 @@ def timeline_coordinates(t):
 
 
 def timelines(trials, output):
+    plt, _ = plotting_modules()
     # Exact documented examples: no post-hoc search for a favourable trial.
     examples = [t for t in trials if
                 (t['model']=='WFR' and t['scenario']=='primary-crash' and t['config']=='C4'
