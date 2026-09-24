@@ -157,7 +157,7 @@ docker compose run --rm --no-deps runner \
   python -m unittest discover -s tests -v
 ```
 
-The package discovers 119 tests. In the compact submission, 115 self-contained tests pass and four archived-fixture regression tests are skipped because the large historical fixture bundle is not duplicated. The experiment validators remain included and run against every newly generated batch.
+The package discovers 120 tests. In the compact submission, 116 self-contained tests pass and four archived-fixture regression tests are skipped because the large historical fixture bundle is not duplicated. The experiment validators remain included and run against every newly generated batch.
 
 ## 4. Start and verify the normal replica set
 
@@ -214,12 +214,12 @@ SOURCE_COMMIT=$(git rev-parse HEAD)
 docker compose run --rm --no-deps \
   -e GIT_COMMIT="$SOURCE_COMMIT" runner \
   python -m experiments.test_ryw --config C1 --trials 2 \
-    --run-id quick-ryw-normal-001
+    --run-id 20260924T000001Z-QUICKRYW
 
 docker compose run --rm --no-deps \
   -e GIT_COMMIT="$SOURCE_COMMIT" runner \
   python -m experiments.test_monotonic_reads --config C4 --trials 2 \
-    --run-id quick-mr-normal-001
+    --run-id 20260924T000002Z-QUICKMR1
 ```
 
 These commands write JSON Lines files with the specified run IDs under
@@ -310,12 +310,12 @@ for CONFIG in C1 C2 C3 C4; do
   docker compose run --rm --no-deps \
     -e GIT_COMMIT="$SOURCE_COMMIT" runner \
     python -m experiments.test_ryw --config "$CONFIG" --trials 100 \
-      --run-id reproduce-ryw-normal-001
+      --run-id 20260924T000101Z-REPRYW01
 
   docker compose run --rm --no-deps \
     -e GIT_COMMIT="$SOURCE_COMMIT" runner \
     python -m experiments.test_monotonic_reads --config "$CONFIG" --trials 100 \
-      --run-id reproduce-mr-normal-001
+      --run-id 20260924T000102Z-REPMR001
 done
 ```
 
@@ -324,7 +324,9 @@ analysis command in Section 7 to select exactly this reproduction cohort while
 preserving its true `pilot` stage. They are not relabelled as legacy or formal
 evidence. If either fixed ID already exists, choose a new ID for both the runner
 and its matching `--select-source` pattern in Section 7; output is never
-overwritten.
+overwritten. Schema v1 IDs must retain the form
+`YYYYMMDDTHHMMSSZ-XXXXXXXX`, where the suffix contains exactly eight letters or
+digits.
 
 ### 6.2 MW and RYW Secondary-loss matrix
 
@@ -589,8 +591,8 @@ Choose output directories that do not already exist:
 
 ```sh
 python -m analysis.unified \
-  --select-source 'results/pilot/ryw/normal/debug/*-reproduce-ryw-normal-001.jsonl' \
-  --select-source 'results/pilot/mr/normal/debug/*-reproduce-mr-normal-001.jsonl' \
+  --select-source 'results/pilot/ryw/normal/debug/*-20260924T000101Z-REPRYW01.jsonl' \
+  --select-source 'results/pilot/mr/normal/debug/*-20260924T000102Z-REPMR001.jsonl' \
   --output results/summary/reproduced-final
 
 python -m analysis.plot_results \
@@ -710,7 +712,7 @@ Do not add `--volumes` unless permanent deletion of database state is explicitly
 
 - [ ] Tool versions recorded
 - [ ] Runner image built
-- [ ] 115 self-contained tests passed and four archived-fixture tests were reported as skipped
+- [ ] 116 self-contained tests passed and four archived-fixture tests were reported as skipped
 - [ ] Normal replica set reached one Primary and two Secondaries
 - [ ] Quick MW, RYW, MR, and WFR checks completed
 - [ ] S2/S3 MW and RYW batches validated

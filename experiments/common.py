@@ -4,7 +4,9 @@ from __future__ import annotations
 import contextvars
 import json
 from pathlib import Path
+import re
 from typing import Any, Callable
+from uuid import uuid4
 
 from bson import json_util
 from pymongo import MongoClient, monitoring
@@ -24,6 +26,20 @@ from pymongo.monitoring import CommandListener
 def utc_now():
     """UTC timestamp in the schema's required Z format."""
     return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def schema_v1_run_id(requested, pattern):
+    """Return a Schema v1 run ID and reject incompatible labels before any I/O."""
+    candidate = requested or (
+        datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        + "-"
+        + uuid4().hex[:8]
+    )
+    if not re.fullmatch(pattern, candidate):
+        raise ValueError(
+            "--run-id must match YYYYMMDDTHHMMSSZ followed by '-' and 8 letters or digits"
+        )
+    return candidate
 
 
 class NodeRecorder(CommandListener):

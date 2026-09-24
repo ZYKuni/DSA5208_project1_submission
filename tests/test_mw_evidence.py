@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from pymongo.errors import NetworkTimeout, WriteConcernError, WTimeoutError
 
 from analysis.analyze import summarize
-from experiments.common import JsonlWriter, execute_operation
+from experiments.common import JsonlWriter, execute_operation, schema_v1_run_id
 from experiments.test_monotonic_writes import classify_trial, history_entry
 
 
@@ -22,6 +22,16 @@ def ordered_evidence():
     audit = {'status': 'success', 'returned_document': {
         'version': 2, 'client_seq': 2, 'history': [h1, h2]}}
     return w1, w2, audit
+
+
+class SchemaRunIdTests(unittest.TestCase):
+    def test_generated_and_explicit_ids_match_schema_while_labels_fail(self):
+        pattern = r"^[0-9]{8}T[0-9]{6}Z-[A-Za-z0-9]{8}$"
+        self.assertRegex(schema_v1_run_id(None, pattern), pattern)
+        valid = "20260924T000001Z-QUICKRYW"
+        self.assertEqual(schema_v1_run_id(valid, pattern), valid)
+        with self.assertRaisesRegex(ValueError, "YYYYMMDD"):
+            schema_v1_run_id("quick-ryw-normal-001", pattern)
 
 
 class OracleTests(unittest.TestCase):

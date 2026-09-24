@@ -6,9 +6,7 @@ import os
 import platform
 import re
 import time
-from datetime import datetime, timezone
 from pathlib import Path
-from uuid import uuid4
 
 import pymongo
 from jsonschema import Draft202012Validator, FormatChecker
@@ -23,6 +21,7 @@ from experiments.common import (
     NodeRecorder,
     config_snapshot,
     record_operation,
+    schema_v1_run_id,
     utc_now,
 )
 from experiments.configs import get_config, session_scope
@@ -156,13 +155,10 @@ def main():
     )
 
     config = get_config(args.config)
-    if args.run_id and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,90}", args.run_id):
-        parser.error("--run-id must contain only letters, digits, '.', '_' or '-'")
-    run_id = args.run_id or (
-        datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        + "-"
-        + uuid4().hex[:8]
-    )
+    try:
+        run_id = schema_v1_run_id(args.run_id, schema["properties"]["run_id"]["pattern"])
+    except ValueError as error:
+        parser.error(str(error))
 
     # Pilot only: source changes have not yet been committed.
     output_dir = ROOT / "results/pilot/ryw/normal/debug"
